@@ -67,14 +67,14 @@ const CONFIG = {
 **Step 4:** Save the Script
 Click the disk icon (💾) or press Ctrl+S / Cmd+S to save your changes.
 
-<img width="1227" height="134" alt="image" src="https://github.com/user-attachments/assets/d5c373b4-24ea-4bc5-aea0-cbb9c12048b4" />
+<img width="1227" height="134" alt="save icon" src="https://github.com/user-attachments/assets/d5c373b4-24ea-4bc5-aea0-cbb9c12048b4" />
 
 **Step 5:** Run the Script
 
 In the function dropdown (top center), select "sendNewsletter"
 Click the Run button (▶️) to the left
 
-<img width="1227" height="144" alt="image" src="https://github.com/user-attachments/assets/d0c9576f-31a4-489e-b2e4-4e1a9b0df6c7" />
+<img width="1227" height="144" alt="run function" src="https://github.com/user-attachments/assets/d0c9576f-31a4-489e-b2e4-4e1a9b0df6c7" />
 
 On first run, you'll need to authorize the script:
 
@@ -93,7 +93,7 @@ This prevents accidental sends
 **Step 7:** Save Again
 Click the disk icon (💾) or press Ctrl+S / Cmd+S to save your changes.
 
-<img width="1227" height="134" alt="image" src="https://github.com/user-attachments/assets/d5c373b4-24ea-4bc5-aea0-cbb9c12048b4" />
+<img width="1227" height="134" alt="save icon" src="https://github.com/user-attachments/assets/d5c373b4-24ea-4bc5-aea0-cbb9c12048b4" />
 
 **Step 8:** Cleanup
 
@@ -246,10 +246,15 @@ LABEL_NAME: Gmail label applied to processed emails (prevents duplicate response
 **Step 4:** Save the Script
 Click the disk icon (💾) or press Ctrl+S / Cmd+S to save your changes.
 
+<img width="1302" height="127" alt="save icon" src="https://github.com/user-attachments/assets/9f713499-f400-4042-8c1b-537d62180816" />
+
 **Step 5:** Set Up Automatic Trigger
 
 In the function dropdown (top center), select "setupTrigger"
 Click the Run button (▶️)
+
+<img width="1223" height="141" alt="run function" src="https://github.com/user-attachments/assets/1fa2cedf-4218-4e49-bcb0-c0d7946974e2" />
+
 On first run, authorize the script:
 
 Click "Review permissions"
