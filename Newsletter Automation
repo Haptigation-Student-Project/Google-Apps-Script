@@ -12,14 +12,56 @@ const CONFIG = {
   contactLabel: "safetyFirst",
   
   // Betreff der E-Mail
-  emailSubject: "insert newsletter subject here", //replaces the subject of your draft
+  emailSubject: "Your Update on Haptigation", //replaces the subject of your draft
   
   // Name des Absenders (wird als "Max Mustermann von Haptigation via haptigation@gmail.com" angezeigt)
-  senderName: "name von Haptigation",
+  senderName: "Sanny von Haptigation",
   
   // Test-Modus: Wenn true, wird nur an deine eigene E-Mail gesendet
-  testMode: true,
+  testMode: false,
+  
+  // Debug-Modus: Wenn true, werden E-Mails in Logs NICHT anonymisiert
+  debugMode: false,
 };
+
+// ========== HILFSFUNKTION FÜR EMAIL-ANONYMISIERUNG ==========
+
+/**
+ * Anonymisiert eine E-Mail-Adresse für Logs
+ * Beispiel: max.mustermann@gmail.com -> m...@g...com
+ */
+function anonymizeEmail(email) {
+  // Wenn Debug-Modus aktiv ist, E-Mail nicht anonymisieren
+  if (CONFIG.debugMode) {
+    return email;
+  }
+  
+  // E-Mail in Bestandteile zerlegen
+  const parts = email.split('@');
+  if (parts.length !== 2) {
+    return email; // Ungültiges Format, nicht anonymisieren
+  }
+  
+  const localPart = parts[0];
+  const domain = parts[1];
+  
+  // Domain in Name und TLD zerlegen
+  const domainParts = domain.split('.');
+  
+  // Lokalen Teil anonymisieren (nur ersten Buchstaben zeigen)
+  const anonymizedLocal = localPart.charAt(0) + '...';
+  
+  // Domain anonymisieren (nur ersten Buchstaben des Domain-Namens zeigen)
+  const anonymizedDomain = domainParts.map((part, index) => {
+    if (index === domainParts.length - 1) {
+      // TLD vollständig zeigen (z.B. "de", "com")
+      return part;
+    }
+    return part.charAt(0) + '...';
+  }).join('.');
+  
+  return `${anonymizedLocal}@${anonymizedDomain}`;
+}
 
 // ========== HAUPTFUNKTION ==========
 
@@ -52,9 +94,10 @@ function sendNewsletter() {
     // 3. Bestätigung anzeigen
     const numRecipients = CONFIG.testMode ? 1 : contacts.length;
     const mode = CONFIG.testMode ? "TEST-MODUS" : "LIVE-VERSAND";
+    const debugInfo = CONFIG.debugMode ? " | DEBUG-MODUS AKTIV" : "";
     
     Logger.log(`\n========== NEWSLETTER-VERSAND ==========`);
-    Logger.log(`Modus: ${mode}`);
+    Logger.log(`Modus: ${mode}${debugInfo}`);
     Logger.log(`Empfänger: ${numRecipients}`);
     Logger.log(`Betreff: ${CONFIG.emailSubject}`);
     Logger.log(`========================================\n`);
@@ -183,7 +226,7 @@ function getNewsletterContacts() {
                 name: name
               });
               
-              Logger.log(`✓ Kontakt geladen: ${name} (${email})`);
+              Logger.log(`✓ Kontakt geladen: ${name} (${anonymizeEmail(email)})`);
             }
           });
         }
@@ -258,7 +301,7 @@ function sendEmails(draft, contacts) {
       );
       
       results.success++;
-      Logger.log(`✓ E-Mail gesendet an: ${contact.email}`);
+      Logger.log(`✓ E-Mail gesendet an: ${anonymizeEmail(contact.email)}`);
       
       // Kurze Pause alle 10 E-Mails, um Gmail-Limits zu vermeiden
       if ((index + 1) % 10 === 0) {
@@ -267,8 +310,9 @@ function sendEmails(draft, contacts) {
       
     } catch (error) {
       results.failed++;
-      results.errors.push(`${contact.email}: ${error.toString()}`);
-      Logger.log(`✗ Fehler bei ${contact.email}: ${error.toString()}`);
+      const anonymizedEmail = anonymizeEmail(contact.email);
+      results.errors.push(`${anonymizedEmail}: ${error.toString()}`);
+      Logger.log(`✗ Fehler bei ${anonymizedEmail}: ${error.toString()}`);
     }
   });
   
@@ -303,7 +347,6 @@ function showResults(results) {
  */
 function showAlert(title, message) {
   const fullMessage = `${title}\n\n${message}`;
-  Logger.log(fullMessage);
   
   // Versuche UI-Dialog, falls verfügbar
   try {
@@ -311,9 +354,10 @@ function showAlert(title, message) {
     ui.alert(title, message, ui.ButtonSet.OK);
   } catch (e) {
     // Kein UI verfügbar - nur loggen
-    console.log(fullMessage);
+    Logger.log(fullMessage);
   }
 }
+
 
 // ========== HILFSFUNKTIONEN ==========
 
@@ -330,7 +374,7 @@ function showContacts() {
   
   let message = `Gefundene Kontakte (${contacts.length}):\n\n`;
   contacts.slice(0, 20).forEach(c => {
-    message += `• ${c.name} (${c.email})\n`;
+    message += `• ${c.name} (${anonymizeEmail(c.email)})\n`;
   });
   
   if (contacts.length > 20) {
