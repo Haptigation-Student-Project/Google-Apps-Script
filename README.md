@@ -30,17 +30,24 @@ Check out the detailed documentation here [Docusaurus](https://haptigation-stude
 
 ## Attachments for Docusaurus
 ### Newsletter Automation
+
 <img width="1227" height="134" alt="save icon" src="https://github.com/user-attachments/assets/d5c373b4-24ea-4bc5-aea0-cbb9c12048b4" />
 <img width="1227" height="144" alt="run function" src="https://github.com/user-attachments/assets/d0c9576f-31a4-489e-b2e4-4e1a9b0df6c7" />
+
 ### Auto Responder
+
 <img width="1302" height="127" alt="save icon" src="https://github.com/user-attachments/assets/9f713499-f400-4042-8c1b-537d62180816" />
 <img width="1223" height="141" alt="run function setup" src="https://github.com/user-attachments/assets/1fa2cedf-4218-4e49-bcb0-c0d7946974e2" />
 <img width="366" height="406" alt="trigger icon" src="https://github.com/user-attachments/assets/e68ba06e-6fba-4c1f-a721-9042d59b4796" />
 <img width="1227" height="137" alt="run function remove" src="https://github.com/user-attachments/assets/21a86e3f-8425-453f-9fb3-1490296bdf72" />
+
 ### Unsubscribe Newsletter
+
 <img width="1222" height="140" alt="save icon" src="https://github.com/user-attachments/assets/98219f3c-a5d6-4209-ab6c-5ecf8cab1471" />
 <img width="1262" height="135" alt="run function setup" src="https://github.com/user-attachments/assets/e3403182-3f40-412a-bd85-8ffd3a148921" />
 <img width="1896" height="389" alt="trigger" src="https://github.com/user-attachments/assets/b0dd5e15-da57-4df9-b22e-b5ef68b83d0e" />
 <img width="1220" height="132" alt="run function remove" src="https://github.com/user-attachments/assets/f1484a30-633c-4e13-b597-5ebba7e86ceb" />
+
 ### User Data Deletion
+
 <img width="1230" height="141" alt="save icon" src="https://github.com/user-attachments/assets/54b4e907-aac5-48b8-9eaa-e87428e4a31b" />
