@@ -19,7 +19,7 @@ Check out the detailed documentation here: [Docusaurus](https://haptigation-stud
 ## User Deletion Automation
 This Google Apps Script must be triggered manually. It deletes EVERYTHING in GMAIL. The contact, all ingoing emails and all outgoing emails. Before deletion it sends out a confirmation email.
 
-Check out the detailed documentation here [Docusaurus](https://haptigation-student-project.github.io/Documentation/docs/Software/Google%20Apps%20Script/user-deletion-automation)
+Check out the detailed documentation here [Docusaurus](https://haptigation-student-project.github.io/Documentation/docs/Software/Google%20Apps%20Script/user-data-deletion-automation)
 
 ---
 
