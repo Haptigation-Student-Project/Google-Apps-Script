@@ -5,13 +5,19 @@
  */
 // ==================== KONFIGURATION ====================
 const CONFIG = {
-  DRAFT_SUBJECT: 'E-Mail Response Automation Draft - DO NOT DELETE', // Betreff des Draft-Entwurfs
-  REPLY_SUBJECT: 'Re: ',                                             // Betreff für die Antwort (z.B. 'Vielen Dank für Ihre E-Mail!')
-  MAX_EMAILS_PER_RUN: 50,                                            // Max. Anzahl E-Mails pro Durchlauf
-  CHECK_INTERVAL_MINUTES: 1,                                         // Prüfintervall in Minuten
-  LABEL_NAME: 'AutoResponded',                                       // Label für bereits beantwortete E-Mails
-  
-  // Debug-Modus: Wenn true, werden E-Mails in Logs NICHT anonymisiert
+  // Drafts
+  DRAFT_SUBJECT: 'E-Mail Response Automation Draft - DO NOT DELETE',
+  FEEDBACK_DRAFT_SUBJECT: 'Feedback E-Mail Response Automation Draft - DO NOT DELETE',
+  // Read Subject (Prefixes)
+  TEST_SUBJECT_PREFIX: 'Test: ',
+  FEEDBACK_SUBJECT_PREFIX: 'Feedback zum App-Design',
+  // Send Subject
+  RESPONSE_SUBJECT: 'Re: ',
+  FEEDBACK_REPLY_SUBJECT: 'Vielen Dank für Ihr Feedback',
+  // Other Settings
+  MAX_EMAILS_PER_RUN: 50,
+  CHECK_INTERVAL_MINUTES: 1,
+  LABEL_NAME: 'AutoResponded',
   debugMode: false
 };
 // =======================================================
@@ -55,6 +61,43 @@ function anonymizeEmail(email) {
   return `${anonymizedLocal}@${anonymizedDomain}`;
 }
 
+/**
+ * Prüft ob eine Nachricht eine Emoji-Reaktion ist
+ * Emoji-Reaktionen haben typischerweise:
+ * - Sehr kurzen oder leeren Body
+ * - Bestimmte Header-Eigenschaften
+ * - Sehr kleine Größe
+ */
+function isEmojiReaction(message) {
+  try {
+    const plainBody = message.getPlainBody().trim();
+    const subject = message.getSubject();
+    
+    // Emoji-Reaktionen haben meist einen leeren oder sehr kurzen Body
+    // und enthalten oft spezielle Marker im Body oder Subject
+    if (plainBody.length === 0) {
+      return true;
+    }
+    
+    // Prüfe auf typische Emoji-Reaktions-Muster
+    // Gmail-Reaktionen enthalten oft nur ein einzelnes Emoji-Zeichen
+    const emojiPattern = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]+$/u;
+    if (plainBody.length <= 10 && emojiPattern.test(plainBody)) {
+      return true;
+    }
+    
+    // Zusätzliche Prüfung: Sehr kurze Nachrichten mit nur Emojis oder Leerzeichen
+    if (plainBody.length <= 5 && plainBody.replace(/\s/g, '').length <= 2) {
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    Logger.log(`Fehler bei Emoji-Check: ${error.toString()}`);
+    return false;
+  }
+}
+
 function autoResponseToEmails() {
   const debugInfo = CONFIG.debugMode ? ' | DEBUG-MODUS AKTIV' : '';
   Logger.log(`========== AUTO-RESPONDER PRÜFUNG ==========`);
@@ -67,68 +110,108 @@ function autoResponseToEmails() {
     label = GmailApp.createLabel(CONFIG.LABEL_NAME);
     Logger.log(`✓ Label "${CONFIG.LABEL_NAME}" erstellt`);
   }
-  
+
   // Suche nach ungelesenen E-Mails, die noch NICHT das Label haben
-  const searchQuery = 'is:unread -label:' + CONFIG.LABEL_NAME;
+  const searchQuery = `is:unread -label:${CONFIG.LABEL_NAME}`;
   const threads = GmailApp.search(searchQuery, 0, CONFIG.MAX_EMAILS_PER_RUN);
-  
+
   if (threads.length === 0) {
     Logger.log('Keine neuen E-Mails gefunden');
     return;
   }
-  
+
   Logger.log(`${threads.length} neue E-Mail(s) gefunden`);
-  
-  // Hole den Draft mit dem Betreff "E-Mail response"
+
+  // Hole die Drafts anhand der konfigurierten Betreffzeilen
   const drafts = GmailApp.getDrafts();
-  let responseDraft = null;
-  
-  for (let i = 0; i < drafts.length; i++) {
-    if (drafts[i].getMessage().getSubject() === CONFIG.DRAFT_SUBJECT) {
-      responseDraft = drafts[i];
-      break;
+  let defaultDraft = null;
+  let feedbackDraft = null;
+  drafts.forEach(draft => {
+    const subject = draft.getMessage().getSubject();
+    if (subject === CONFIG.DRAFT_SUBJECT) {
+      defaultDraft = draft;
     }
-  }
-  
-  if (!responseDraft) {
-    Logger.log('Kein Draft mit dem Betreff "' + CONFIG.DRAFT_SUBJECT + '" gefunden');
+    if (subject === CONFIG.FEEDBACK_DRAFT_SUBJECT) {
+      feedbackDraft = draft;
+    }
+  });
+
+  if (!defaultDraft) {
+    Logger.log(`Kein Draft mit Betreff "${CONFIG.DRAFT_SUBJECT}" gefunden`);
     return;
   }
   
-  Logger.log(`✓ Response-Draft gefunden: "${CONFIG.DRAFT_SUBJECT}"`);
+  if (!feedbackDraft) {
+    Logger.log(`Kein Feedback-Draft mit Betreff "${CONFIG.FEEDBACK_DRAFT_SUBJECT}" gefunden`);
+  }
   
+  if (defaultDraft) {
+    Logger.log(`✓ Response-Draft gefunden: "${CONFIG.DRAFT_SUBJECT}"`);
+  }
+
+  if (feedbackDraft) {
+    Logger.log(`✓ Feedback-Draft gefunden: "${CONFIG.FEEDBACK_DRAFT_SUBJECT}"`);
+  }
+
   let successCount = 0;
   let failCount = 0;
-  
+  let skippedEmojiCount = 0;
+
   // Verarbeite jeden Thread
   threads.forEach(thread => {
     try {
       const messages = thread.getMessages();
       const latestMessage = messages[messages.length - 1];
-      
+
       // Prüfe ob die E-Mail bereits beantwortet wurde (sollte durch Search-Query bereits gefiltert sein)
       if (!latestMessage.isUnread()) {
         return;
       }
-      
+
+      // Prüfe ob es sich um eine Emoji-Reaktion handelt
+      if (isEmojiReaction(latestMessage)) {
+        skippedEmojiCount++;
+        const sender = latestMessage.getFrom();
+        Logger.log(`⊘ Emoji-Reaktion übersprungen von: ${anonymizeEmail(sender)}`);
+        // Markiere mit Label, damit es nicht erneut geprüft wird
+        thread.addLabel(label);
+        return;
+      }
+
       const sender = latestMessage.getFrom();
       const subject = latestMessage.getSubject();
-      const draftMessage = responseDraft.getMessage();
-      
-      // Erstelle den Antwort-Betreff
-      const replySubject = CONFIG.REPLY_SUBJECT.includes('Re:') 
-        ? CONFIG.REPLY_SUBJECT + subject 
-        : CONFIG.REPLY_SUBJECT;
-      
+
+      // Test-Mails komplett ignorieren
+      if (subject.startsWith(CONFIG.TEST_SUBJECT_PREFIX)) {
+        Logger.log(`⊘ Test-Mail ignoriert: ${subject}`);
+        thread.addLabel(label);
+        return;
+      }
+
+      // Draft & Betreff je nach Typ auswählen
+      let activeDraft = defaultDraft;
+      let replySubject = `${CONFIG.RESPONSE_SUBJECT}${subject}`;
+
+      // Feedback-Mails mit Sonderbehandlung
+      if (subject.contains(CONFIG.FEEDBACK_SUBJECT_PREFIX)) {
+        if (!feedbackDraft) {
+          Logger.log(`Feedback-Draft fehlt – Mail übersprungen`);
+          thread.addLabel(label);
+          return;
+        }
+        activeDraft = feedbackDraft;
+        replySubject = CONFIG.FEEDBACK_REPLY_SUBJECT;
+      }
+
+      const draftMessage = activeDraft.getMessage();
+
       // Hole alle Anhänge (Inline-Bilder) aus dem Draft
       const attachments = draftMessage.getAttachments();
       const inlineImages = {};
-      
-      // Erstelle inlineImages Objekt für eingebettete Bilder
       attachments.forEach((attachment, index) => {
-        inlineImages['img' + index] = attachment;
+        inlineImages[`img${index}`] = attachment;
       });
-      
+
       // Sende die Antwort mit Inline-Bildern (ohne attachments Parameter)
       GmailApp.sendEmail(
         sender,
@@ -140,25 +223,26 @@ function autoResponseToEmails() {
           replyTo: Session.getActiveUser().getEmail()
         }
       );
-      
+
       // Markiere den Thread mit Label (damit keine Duplikate gesendet werden)
       thread.addLabel(label);
-      
+
       // Optional: Markiere die E-Mail als gelesen (kannst du auskommentieren wenn nicht gewünscht)
       // latestMessage.markRead();
-      
+
       successCount++;
       Logger.log(`✓ Auto-Response gesendet an: ${anonymizeEmail(sender)}`);
-      
+
     } catch (error) {
       failCount++;
       const sender = thread.getMessages()[thread.getMessages().length - 1].getFrom();
       Logger.log(`✗ Fehler bei ${anonymizeEmail(sender)}: ${error.toString()}`);
     }
   });
-  
+
   Logger.log(`\n========== ZUSAMMENFASSUNG ==========`);
   Logger.log(`✓ Erfolgreich: ${successCount}`);
+  Logger.log(`⊘ Emoji-Reaktionen ignoriert: ${skippedEmojiCount}`);
   Logger.log(`✗ Fehlgeschlagen: ${failCount}`);
   Logger.log(`=====================================\n`);
 }

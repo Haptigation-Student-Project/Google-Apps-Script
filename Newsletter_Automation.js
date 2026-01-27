@@ -1,7 +1,7 @@
 /**
  * Newsletter-Versand Script für Gmail
  * Versendet individuelle E-Mails an alle Kontakte mit dem Label "Newsletter Subscriber"
- * Nutzt dafür den ersten E-Mail Draft der irgendwo im Betreff "Haptigation Newsletter" stehen hat
+ * Nutzt dafür den ersten E-Mail Draft der irgendwo im Betreff "Update zu Haptigation" stehen hat
  */
 
 // ========== KONFIGURATION ==========
@@ -11,57 +11,15 @@ const CONFIG = {
   // Das Label deiner Newsletter-Kontakte in Gmail
   contactLabel: "safetyFirst",
   
-  // Betreff der E-Mail
-  emailSubject: "Your Update on Haptigation", //replaces the subject of your draft
-  
   // Name des Absenders (wird als "Max Mustermann von Haptigation via haptigation@gmail.com" angezeigt)
-  senderName: "Sanny von Haptigation",
+  senderName: "David von Haptigation",
   
   // Test-Modus: Wenn true, wird nur an deine eigene E-Mail gesendet
-  testMode: false,
+  testMode: true,
   
   // Debug-Modus: Wenn true, werden E-Mails in Logs NICHT anonymisiert
   debugMode: false,
 };
-
-// ========== HILFSFUNKTION FÜR EMAIL-ANONYMISIERUNG ==========
-
-/**
- * Anonymisiert eine E-Mail-Adresse für Logs
- * Beispiel: max.mustermann@gmail.com -> m...@g...com
- */
-function anonymizeEmail(email) {
-  // Wenn Debug-Modus aktiv ist, E-Mail nicht anonymisieren
-  if (CONFIG.debugMode) {
-    return email;
-  }
-  
-  // E-Mail in Bestandteile zerlegen
-  const parts = email.split('@');
-  if (parts.length !== 2) {
-    return email; // Ungültiges Format, nicht anonymisieren
-  }
-  
-  const localPart = parts[0];
-  const domain = parts[1];
-  
-  // Domain in Name und TLD zerlegen
-  const domainParts = domain.split('.');
-  
-  // Lokalen Teil anonymisieren (nur ersten Buchstaben zeigen)
-  const anonymizedLocal = localPart.charAt(0) + '...';
-  
-  // Domain anonymisieren (nur ersten Buchstaben des Domain-Namens zeigen)
-  const anonymizedDomain = domainParts.map((part, index) => {
-    if (index === domainParts.length - 1) {
-      // TLD vollständig zeigen (z.B. "de", "com")
-      return part;
-    }
-    return part.charAt(0) + '...';
-  }).join('.');
-  
-  return `${anonymizedLocal}@${anonymizedDomain}`;
-}
 
 // ========== HAUPTFUNKTION ==========
 
@@ -74,8 +32,8 @@ function sendNewsletter() {
     const draft = getNewsletterDraft();
     if (!draft) {
       showAlert("Fehler: Kein Newsletter-Entwurf gefunden!", 
-        'Bitte erstelle einen E-Mail-Entwurf in Gmail mit "Haptigation Newsletter" im Betreff.\n\n' +
-        'Beispiel: "Haptigation Newsletter - Dezember 2024"');
+        'Bitte erstelle einen E-Mail-Entwurf in Gmail mit "Update zu Haptigation" im Betreff.\n\n' +
+        'Beispiel: "Dein Update zu Haptigation - Dezember 2025"');
       return;
     }
     
@@ -99,7 +57,6 @@ function sendNewsletter() {
     Logger.log(`\n========== NEWSLETTER-VERSAND ==========`);
     Logger.log(`Modus: ${mode}${debugInfo}`);
     Logger.log(`Empfänger: ${numRecipients}`);
-    Logger.log(`Betreff: ${CONFIG.emailSubject}`);
     Logger.log(`========================================\n`);
     
     // Automatisch fortfahren (da wir keine UI-Bestätigung haben)
@@ -132,10 +89,10 @@ function getNewsletterDraft() {
     return null;
   }
   
-  // Suche nach Entwurf mit "Haptigation Newsletter" im Betreff
+  // Suche nach Entwurf mit "Update zu Haptigation" im Betreff
   for (let draft of drafts) {
     const subject = draft.getMessage().getSubject();
-    if (subject.includes("Haptigation Newsletter")) {
+    if (subject.includes("Update zu Haptigation")) {
       Logger.log(`✓ Newsletter-Entwurf gefunden: "${subject}"`);
       return draft;
     }
@@ -212,9 +169,23 @@ function getNewsletterContacts() {
         
         if (batchResponse.responses) {
           batchResponse.responses.forEach(personResponse => {
-            if (personResponse.person && personResponse.person.emailAddresses) {
+            if (personResponse.person) {
               const person = personResponse.person;
+              
+              // WICHTIG: Prüfen ob E-Mail existiert
+              if (!person.emailAddresses || person.emailAddresses.length === 0) {
+                Logger.log(`⚠ Kontakt ohne E-Mail übersprungen`);
+                return; // Diesen Kontakt überspringen
+              }
+              
               const email = person.emailAddresses[0].value;
+              
+              // Zusätzliche Validierung
+              if (!email || !email.includes('@')) {
+                Logger.log(`⚠ Ungültige E-Mail übersprungen: ${email}`);
+                return;
+              }
+              
               let name = email.split('@')[0]; // Fallback
               
               if (person.names && person.names.length > 0) {
@@ -255,6 +226,7 @@ function getNewsletterContacts() {
  */
 function sendEmails(draft, contacts) {
   const message = draft.getMessage();
+  const subject = message.getSubject();
   const htmlBody = message.getBody();
   const plainBody = message.getPlainBody();
   
@@ -278,6 +250,16 @@ function sendEmails(draft, contacts) {
       }
       
       // Personalisierung - unterstützt [NAME], [Name] und [name]
+      let personalizedSubject = subject
+        .replace(/\[NAME\]/g, displayName)
+        .replace(/\[Name\]/g, displayName)
+        .replace(/\[name\]/g, displayName);
+
+      // Testmodus-Präfix für Betreff
+      if (CONFIG.testMode) {
+        personalizedSubject = `Test: ${personalizedSubject}`;
+      }
+      
       const personalizedHtml = htmlBody
         .replace(/\[NAME\]/g, displayName)
         .replace(/\[Name\]/g, displayName)
@@ -291,12 +273,13 @@ function sendEmails(draft, contacts) {
       // E-Mail versenden
       GmailApp.sendEmail(
         contact.email,
-        CONFIG.emailSubject,
+        personalizedSubject,
         personalizedPlain,
         {
           htmlBody: personalizedHtml,
           name: CONFIG.senderName,
-          noReply: false
+          noReply: false,
+          charset: 'UTF-8'
         }
       );
       
@@ -358,9 +341,6 @@ function showAlert(title, message) {
   }
 }
 
-
-// ========== HILFSFUNKTIONEN ==========
-
 /**
  * Zeigt alle Newsletter-Kontakte an
  */
@@ -406,4 +386,46 @@ function listAllContactGroups() {
   } catch (error) {
     showAlert("Fehler", `Fehler beim Laden der Groups: ${error.toString()}`);
   }
+}
+
+/**
+ * Anonymisiert eine E-Mail-Adresse für Logs
+ * Beispiel: max.mustermann@gmail.com -> m...@g...com
+ */
+function anonymizeEmail(email) {
+  // Wenn Debug-Modus aktiv ist, E-Mail nicht anonymisieren
+  if (CONFIG.debugMode) {
+    return email || '[keine E-Mail]';
+  }
+  
+  // Prüfen ob email existiert
+  if (!email || typeof email !== 'string') {
+    return '[keine E-Mail]';
+  }
+  
+  // E-Mail in Bestandteile zerlegen
+  const parts = email.split('@');
+  if (parts.length !== 2) {
+    return email; // Ungültiges Format, nicht anonymisieren
+  }
+  
+  const localPart = parts[0];
+  const domain = parts[1];
+  
+  // Domain in Name und TLD zerlegen
+  const domainParts = domain.split('.');
+  
+  // Lokalen Teil anonymisieren (nur ersten Buchstaben zeigen)
+  const anonymizedLocal = localPart.charAt(0) + '...';
+  
+  // Domain anonymisieren (nur ersten Buchstaben des Domain-Namens zeigen)
+  const anonymizedDomain = domainParts.map((part, index) => {
+    if (index === domainParts.length - 1) {
+      // TLD vollständig zeigen (z.B. "de", "com")
+      return part;
+    }
+    return part.charAt(0) + '...';
+  }).join('.');
+  
+  return `${anonymizedLocal}@${anonymizedDomain}`;
 }

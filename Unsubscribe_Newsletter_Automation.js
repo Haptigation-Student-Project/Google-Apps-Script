@@ -253,7 +253,7 @@ function sendUnsubscribeConfirmation(email) {
     
     for (let draft of drafts) {
       const subject = draft.getMessage().getSubject();
-      if (subject.includes("Unsubscribe Newsletter - DO NOT DELETE")) {
+      if (subject.includes("Unsubscribe Newsletter Draft - DO NOT DELETE")) {
         confirmationDraft = draft;
         log(`✓ Bestätigungs-Draft gefunden`, false);
         break;

@@ -7,11 +7,11 @@
 // Konfiguration
 const CONFIG = {
   DEBUG_MODE: false, // Auf true setzen für vollständige Email-Anzeige im Log
-  MAX_THREADS_PER_BATCH: 100, // Maximale Anzahl von Threads pro Batch-Löschung
+  MAX_THREADS_PER_BATCH: 500, // Maximale Anzahl von Threads pro Batch-Löschung
   EMAIL: "beispiel@gmail.com", // Ersetze mit echter E-Mail die gelöscht werden muss
   TESTMAIL: "test@gmail.com", // Ersetze mit echter E-Mail mit der du testen möchtest
-  DRAFTSUBJECT: 'Confirm User Data Deletion Draft - DO NOT DELETE', // Draft-Betreff in Gmail
-  FINAL_EMAIL_SUBJECT: 'Confirm User Data Deletion', // Betreff der versendeten Email
+  DRAFT_SUBJECT: 'Confirm User Data Deletion Draft - DO NOT DELETE', // Draft-Betreff in Gmail
+  FINAL_EMAIL_SUBJECT: 'Wir haben ihre Nutzerdaten gelöscht', // Betreff der versendeten Email
 };
 
 /**
@@ -20,7 +20,7 @@ const CONFIG = {
 function deleteByEmail() {
   const EMAIL_TO_DELETE = CONFIG.EMAIL;
   
-  if (!EMAIL_TO_DELETE || EMAIL_TO_DELETE === 'beispiel@email.de') {
+  if (!EMAIL_TO_DELETE || EMAIL_TO_DELETE === 'beispiel@gmail.com') {
     log('ERROR', 'Bitte trage eine gültige Email-Adresse in der Variable EMAIL_TO_DELETE ein!');
     throw new Error('Keine Email-Adresse angegeben. Bitte CODE anpassen.');
   }
@@ -87,7 +87,7 @@ function deleteAllDataForEmail(email) {
 }
 
 /**
- * Sendet eine Bestätigungsmail aus dem Draft-Template
+ * Sendet eine Bestätigungsmail aus dem Draft-Template mit HTML und Inline-Bildern
  */
 function sendConfirmationEmail(email) {
   log('INFO', `📧 Suche Draft mit Betreff: "${CONFIG.DRAFT_SUBJECT}"`);
@@ -112,28 +112,62 @@ function sendConfirmationEmail(email) {
       return false;
     }
     
-    // Hole Draft-Nachricht (nur Body, Betreff wird überschrieben)
+    // Hole Draft-Nachricht
     const draftMessage = templateDraft.getMessage();
-    let body = draftMessage.getPlainBody(); // Verwende nur Plain Text, kein HTML
+    
+    // Hole HTML-Body (falls vorhanden) oder Plain Text als Fallback
+    let htmlBody = draftMessage.getBody(); // HTML-Body
+    let plainBody = draftMessage.getPlainBody(); // Plain Text Fallback
     
     // Verwende den konfigurierten finalen Betreff
     let subject = CONFIG.FINAL_EMAIL_SUBJECT;
     
-    // Ersetze Platzhalter (falls vorhanden)
-    body = body.replace(/\{\{EMAIL\}\}/g, email);
-    subject = subject.replace(/\{\{EMAIL\}\}/g, email);
+    // Ersetze Platzhalter in beiden Versionen
+    htmlBody = htmlBody.replace(/\{EMAIL\}/g, email);
+    plainBody = plainBody.replace(/\{EMAIL\}/g, email);
+    subject = subject.replace(/\{EMAIL\}/g, email);
+    
+    // Hole alle Anhänge (Inline-Bilder sind als Attachments gespeichert)
+    const attachments = draftMessage.getAttachments();
     
     log('INFO', `📤 Sende Bestätigungsmail an: ${anonymizeEmail(email)}`);
     log('INFO', `📋 Betreff: "${subject}"`);
+    log('INFO', `🖼️  Anhänge/Inline-Bilder: ${attachments.length}`);
     
-    // Sende E-Mail als Plain Text (kein HTML)
+    // Erstelle erweiterte Mail-Optionen
+    const mailOptions = {
+      htmlBody: htmlBody,           // HTML-Version mit Inline-Bildern
+      inlineImages: {},             // Container für Inline-Bilder
+      attachments: []               // Echte Anhänge (keine Inline-Bilder)
+    };
+    
+    // Verarbeite Anhänge: Unterscheide zwischen Inline-Bildern und echten Anhängen
+    attachments.forEach((attachment, index) => {
+      const contentId = attachment.getName();
+      const isInlineImage = htmlBody.includes(`cid:${contentId}`) || 
+                           htmlBody.includes(`src="${contentId}"`);
+      
+      if (isInlineImage) {
+        // Dies ist ein Inline-Bild
+        mailOptions.inlineImages[contentId] = attachment;
+        log('INFO', `   🖼️  Inline-Bild: ${contentId}`);
+      } else {
+        // Dies ist ein echter Anhang
+        mailOptions.attachments.push(attachment);
+        log('INFO', `   📎 Anhang: ${contentId}`);
+      }
+    });
+    
+    // Sende E-Mail mit HTML und Inline-Bildern
     GmailApp.sendEmail(
       email,
       subject,
-      body
+      plainBody,      // Plain Text Version (Fallback)
+      mailOptions     // Erweiterte Optionen mit HTML und Inline-Bildern
     );
     
     log('SUCCESS', `✓ Bestätigungsmail erfolgreich versendet an ${anonymizeEmail(email)}`);
+    log('SUCCESS', `   📧 Format: HTML mit ${Object.keys(mailOptions.inlineImages).length} Inline-Bild(ern)`);
     
     // Kurze Pause nach dem Versand
     Utilities.sleep(1000);
@@ -326,8 +360,8 @@ function anonymizeEmail(email, partial = false) {
 function log(level, message) {
   const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
   const logMessage = `[${timestamp}] [${level.padEnd(7)}] ${message}`;
-  console.log(logMessage);
-  Logger.log(logMessage);
+  Logger.log(logMessage);  // ← Nur diese Zeile behalten
+  // console.log(logMessage); ← Diese Zeile löschen oder auskommentieren
 }
 
 /**
